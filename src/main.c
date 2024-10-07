@@ -4,8 +4,8 @@
 #include <freertos/queue.h>
 #include "driver/gpio.h"
 
-#define GPIO_IN GPIO_NUM_25
-#define GPIO_OUT GPIO_NUM_26
+//#define GPIO_IN GPIO_NUM_25
+//#define GPIO_OUT GPIO_NUM_26
 #define ONBOARD_LED GPIO_NUM_13
 
 #define QUEUESIZE 20
@@ -26,7 +26,7 @@ void vPutStringInQueue(void* param){ //SIMULATE a task that adds characters to t
     QueueHandle_t charQueue = *((QueueHandle_t*) param);
     assert(charQueue);
 
-    char* inputString = "TESTSTRING";
+    char* inputString = "MYNAMEISCAMPBELLHODGE"; //-- -.-- -. .- -- . .. ... -.-. .- -- .--. -... . .-.. .-.. .... --- -.. --. .
     bool done = false;
 
     for(int index = 0;;){
@@ -55,20 +55,20 @@ void vStringToMorse(void* param){
         //vPrintString("Trying to read from Queue\n");
         //printf("Messages in charQueue: %i\n",uxQueueMessagesWaiting(charQueue));
         if(uxQueueMessagesWaiting(charQueue)){
-            vPrintString("Entered Chara conversion\n");
+            //vPrintString("Entered Chara conversion\n");
             i = 0;
             xQueueReceive(charQueue,&readChar,0);
-            vPrintChar(readChar);
+            //vPrintChar(readChar);
             for(; i < 36;i++){
-                printf("Index: %i\n",i);
+                //printf("Index: %i\n",i);
                 if(readChar == charArray[i] || readChar + CAPITAL_OFFSET == charArray[i]){break;}
             }
             if(uxQueueMessagesWaiting(intQueue)){ //could cause an extra long dash if this returns false before line +22 triggers
-                printf("\nSending to queue: %u",*(intArray+i));
+                //printf("\nSending to queue: %u",*(intArray+i));
                 xQueueSend(intQueue,intArray+i,pdMS_TO_TICKS(1000));
             }else{
                 uint16_t temp = intArray[i]*2+1;
-                printf("\nSending to queue: %u",temp);
+                //printf("\nSending to queue: %u",temp);
                 xQueueSend(intQueue,&temp,pdMS_TO_TICKS(1000));
             }
         }else{
@@ -81,7 +81,7 @@ void vMorseFlash(void* param){
     QueueHandle_t intQueue = *((QueueHandle_t*) param);
     assert(intQueue);
     u_int16_t mask,flashSequence;
-    TickType_t baseInteveral = pdMS_TO_TICKS(1000);
+    TickType_t baseInteveral = pdMS_TO_TICKS(500);
 
     for(;;){
         if(uxQueueMessagesWaiting(intQueue)){
@@ -90,7 +90,7 @@ void vMorseFlash(void* param){
             //printf("Int from Queue: %u",flashSequence);
             for(;mask;mask*=2){
                 printf("%u & %u : %d\n",flashSequence,mask,flashSequence & mask);
-                printf("%u && %u\n",!((flashSequence >> 1) & mask),!uxQueueMessagesWaiting(intQueue));
+                printf("%u && %u\n",!((flashSequence >> 1) & mask),uxQueueMessagesWaiting(intQueue));
                 /*
                 if(flashSequence & mask){
                     led_on:
@@ -103,6 +103,12 @@ void vMorseFlash(void* param){
                 }else{
                     gpio_set_level(ONBOARD_LED,0);
                 }*/
+                gpio_set_level(ONBOARD_LED,flashSequence & mask);
+                if(!((flashSequence >> 1) & mask) && uxQueueMessagesWaiting(intQueue)){
+                    xQueueReceive(intQueue,&flashSequence,0);
+                    flashSequence = flashSequence * 2 + 1;
+                    mask = 0x01;
+                }
                 vTaskDelay(baseInteveral);
             }
         }else{
