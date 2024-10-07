@@ -4,8 +4,8 @@
 #include <freertos/queue.h>
 #include "driver/gpio.h"
 
-//#define GPIO_IN GPIO_NUM_25
-//#define GPIO_OUT GPIO_NUM_26
+#define GPIO_IN GPIO_NUM_25
+#define GPIO_OUT GPIO_NUM_26
 #define ONBOARD_LED GPIO_NUM_13
 
 #define QUEUESIZE 20
@@ -117,15 +117,33 @@ void vMorseFlash(void* param){
     }
 }
 
+void vHandleInput(void* param){
+    int loopNum = 1;
+    char* buffer = (char*) param;
+
+    for(;;){
+        *buffer = *buffer * 2 + gpio_get_level(GPIO_IN);
+    }
+}
+
+void vSendInputBuffer(void** param){
+    QueueHandle_t* sendTo = (QueueHandle_t*) (*param);
+    char* buffer = (char*) *(param+1);
+
+
+}
+
 void app_main() {
     vPrintString("Program Start\n");
     QueueHandle_t charQueue,intQueue;
-    //gpio_reset_pin(GPIO_IN);
-    //gpio_set_direction(GPIO_IN, GPIO_MODE_INPUT);
-    //gpio_reset_pin(GPIO_OUT);
-    //gpio_set_direction(GPIO_OUT, GPIO_MODE_OUTPUT);
+
+    gpio_reset_pin(GPIO_IN);
+    gpio_set_direction(GPIO_IN, GPIO_MODE_INPUT);
+    gpio_reset_pin(GPIO_OUT);
+    gpio_set_direction(GPIO_OUT, GPIO_MODE_OUTPUT);
     gpio_reset_pin(ONBOARD_LED);
     gpio_set_direction(ONBOARD_LED,GPIO_MODE_OUTPUT);
+
     charQueue = xQueueCreate(QUEUESIZE,sizeof(char));
     intQueue = xQueueCreate(QUEUESIZE,sizeof(uint16_t));
     QueueHandle_t handles[] = {charQueue,intQueue};
