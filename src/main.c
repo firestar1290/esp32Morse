@@ -118,13 +118,13 @@ void vMorseFlash(void* param){
 }
 
 void vSendInputBuffer(void* param){
-    QueueHandle_t* sendTo = (QueueHandle_t*) param;
+    QueueHandle_t sendTo = *((QueueHandle_t*) param);
     assert(sendTo);
     uint32_t buffer = 0;
 
     for(;;){
-        xTaskNotifyWait(0,ULONG_MAX,buffer,portMAX_DELAY);
-        xQueueSend(sendTo,(char) buffer,portMAX_DELAY);
+        xTaskNotifyWait(0,ULONG_MAX,&buffer,portMAX_DELAY);
+        xQueueSend(sendTo,(char*) &buffer,portMAX_DELAY);
     }
 }
 
@@ -167,6 +167,9 @@ void app_main() {
     QueueHandle_t handles[] = {charQueue,intQueue};
 
     if(charQueue && intQueue){
+        printf("PutStringInQueue: %p\nStringToMorese: %p\nMorseFlash: %p\nHandleGPIO: %p\nSendBuffer: %p\n",&vPutStringInQueue,&vStringToMorse,&vMorseFlash,&vHandleInput,&vSendInputBuffer);
+        printf("SendTestGPIOInput: %p\napp_main: %p\n",&SendTestGPIOInput,&app_main);
+        printf("charQueue: %p\nintQueue: %p\nhandles: %p\n",&charQueue,&intQueue,handles);
         xTaskCreate(vPutStringInQueue,"PutStringInQueue",2048,(void*) &charQueue,2,NULL);
         xTaskCreatePinnedToCore(vStringToMorse,"StringToMorse",2048,(void*) handles,1,NULL,1);
         xTaskCreatePinnedToCore(vMorseFlash,"MorseFlash",2048,&intQueue,1,NULL,0);
