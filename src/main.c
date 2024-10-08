@@ -117,20 +117,38 @@ void vMorseFlash(void* param){
     }
 }
 
-void vHandleInput(void* param){
-    int loopNum = 1;
-    char* buffer = (char*) param;
+void vSendInputBuffer(void* param){
+    QueueHandle_t* sendTo = (QueueHandle_t*) param;
+    assert(sendTo);
+    uint32_t buffer = 0;
 
     for(;;){
-        *buffer = *buffer * 2 + gpio_get_level(GPIO_IN);
+        xTaskNotifyWait(0,ULONG_MAX,buffer,portMAX_DELAY);
+        xQueueSend(sendTo,(char) buffer,portMAX_DELAY);
     }
 }
 
-void vSendInputBuffer(void** param){
-    QueueHandle_t* sendTo = (QueueHandle_t*) (*param);
-    char* buffer = (char*) *(param+1);
+void vHandleInput(void* param){
+    int loopNum = 1;
+    char buffer = 0;
 
+    for(;;loopNum++){
+        buffer = (buffer << 1) | gpio_get_level(GPIO_IN);
+        if(loopNum%8==0){
+            xTaskNotify(xTaskGetHandle("SendBuffer"),buffer,eSetValueWithoutOverwrite);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 
+void SendTestGPIOInput(){
+    const char* testString = "MYNAMEISCAMPBELLHODGE";
+    for(int index = 0;testString[index];index++){
+        for(unsigned char mask = 1;mask;mask = mask << 1){
+            gpio_set_level(GPIO_OUT,testString[index] & mask);
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
 }
 
 void app_main() {
@@ -152,10 +170,13 @@ void app_main() {
         xTaskCreate(vPutStringInQueue,"PutStringInQueue",2048,(void*) &charQueue,2,NULL);
         xTaskCreatePinnedToCore(vStringToMorse,"StringToMorse",2048,(void*) handles,1,NULL,1);
         xTaskCreatePinnedToCore(vMorseFlash,"MorseFlash",2048,&intQueue,1,NULL,0);
+        xTaskCreate(vHandleInput,"HandleGPIO",1024,NULL,tskIDLE_PRIORITY+1,NULL);
+        xTaskCreate(vSendInputBuffer,"SendBuffer",1024,handles[0],tskIDLE_PRIORITY+1,NULL);
     }else{
         printf("%s","Error: One or both queues not created\n");
     }
     for(;;){
+        SendTestGPIOInput();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
