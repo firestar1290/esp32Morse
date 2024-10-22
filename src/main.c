@@ -7,6 +7,8 @@
 #define GPIO_IN GPIO_NUM_25
 #define GPIO_OUT GPIO_NUM_26
 #define ONBOARD_LED GPIO_NUM_13
+#define CHECK_INPUT GPIO_NUM_22
+#define CHECK_OUTPUT GPIO_NUM_23
 
 #define QUEUESIZE 20
 
@@ -131,21 +133,28 @@ void vSendInputBuffer(void* param){
 void vHandleInput(void* param){
     int loopNum = 1;
     char buffer = 0;
+    bool lastCheck = false;
 
     for(;;loopNum++){
-        buffer = (buffer << 1) | gpio_get_level(GPIO_IN);
-        if(loopNum%8==0){
-            xTaskNotify(xTaskGetHandle("SendBuffer"),buffer,eSetValueWithoutOverwrite);
+        if(!lastCheck){
+            buffer = (buffer << 1) | gpio_get_level(GPIO_IN);
+            if(loopNum%8==0){
+                xTaskNotify(xTaskGetHandle("SendBuffer"),buffer,eSetValueWithoutOverwrite);
+            }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        lastCheck = gpio_get_level(CHECK_INPUT);
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
 void SendTestGPIOInput(){
     const char* testString = "MYNAMEISCAMPBELLHODGE";
+    bool check = true;
     for(int index = 0;testString[index];index++){
         for(unsigned char mask = 1;mask;mask = mask << 1){
             gpio_set_level(GPIO_OUT,testString[index] & mask);
+            gpio_set_level(CHECK_OUTPUT,check);
+            check = !check;
             vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
