@@ -49,6 +49,7 @@ void vStringToMorse(void* param){
         if(uxQueueMessagesWaiting(charQueue)){
             i = 0;
             xQueueReceive(charQueue,&readChar,0);
+            //printf("Char received: %c\n",readChar);
             for(; i < 36;i++){
                 if(readChar == charArray[i] || readChar + CAPITAL_OFFSET == charArray[i]){break;}
             }
@@ -74,6 +75,7 @@ void vMorseFlash(void* param){
         if(uxQueueMessagesWaiting(intQueue)){
             mask = 0x01;
             xQueueReceive(intQueue,&flashSequence,0);
+            //printf("Int received: %u",flashSequence);
             for(;mask;mask*=2){
                 gpio_set_level(ONBOARD_LED,flashSequence & mask);
                 if(!((flashSequence >> 1) & mask) && uxQueueMessagesWaiting(intQueue)){
@@ -119,7 +121,7 @@ void vHandleInput(void* param){
 }
 
 void SendTestGPIOInput(){
-    const char* testString = "MYNAMEISCAMPBELLHODGE";
+    const char* testString = "MYNAMEISCAMPBELLHODGE"; //13, 437, 5, 2, 10, 363, 6, 13, 182, 85, 0, 86, 86, 42, 109, 21, 45, 0
     bool check = true;
     for(int index = 0;testString[index];index++){
         for(unsigned char mask = 1;mask;mask = mask << 1){
@@ -151,9 +153,9 @@ void app_main() {
     TaskHandle_t sendBufferTask;
 
     if(charQueue && intQueue){
-        xTaskCreate(vSendInputBuffer,"SendBuffer",512,(void*) &charQueue,tskIDLE_PRIORITY+1,&sendBufferTask);
-        xTaskCreate(vPutStringInQueue,"PutStringInQueue",512,(void*) &charQueue,tskIDLE_PRIORITY+2,NULL);
-        xTaskCreate(vStringToMorse,"StringToMorse",1024,(void*) handles,tskIDLE_PRIORITY+1,NULL);
+        xTaskCreate(vSendInputBuffer,"SendBuffer",1024,(void*) &charQueue,tskIDLE_PRIORITY+1,&sendBufferTask);
+        xTaskCreate(vPutStringInQueue,"PutStringInQueue",1024,(void*) &charQueue,tskIDLE_PRIORITY+2,NULL);
+        xTaskCreate(vStringToMorse,"StringToMorse",2048,(void*) handles,tskIDLE_PRIORITY+1,NULL);
         xTaskCreate(vMorseFlash,"MorseFlash",2048,&intQueue,tskIDLE_PRIORITY+1,NULL); //takes extra memory
         xTaskCreate(vHandleInput,"HandleGPIO",1024,(void*) &sendBufferTask,tskIDLE_PRIORITY+1,NULL);
     }else{
@@ -161,7 +163,7 @@ void app_main() {
     }
     for(;;){
         SendTestGPIOInput();
-        vTaskDelay(1000000);
+        vTaskDelay(10000);
     }
 
     return;
