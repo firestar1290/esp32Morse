@@ -10,21 +10,11 @@
 #define CHECK_INPUT GPIO_NUM_22
 #define CHECK_OUTPUT GPIO_NUM_23
 
-#define MAX_INTR_WDT_DELAY pdMS_TO_TICKS(0)
+#define MAX_INTR_WDT_DELAY pdMS_TO_TICKS(500)
 
 #define QUEUESIZE 20
 
 #define CAPITAL_OFFSET ('A' - 'a')
-
-void vPrintString(const char* string){
-    printf("%s", string);
-    fflush(stdout);
-}
-
-void vPrintChar(const char chara){
-    printf("\n%c\n", chara);
-    fflush(stdout);
-}
 
 void vPutStringInQueue(void* param){ //SIMULATE a task that adds characters to the queue DO NOT ACTUALLY USE
     QueueHandle_t charQueue = *((QueueHandle_t*) param);
@@ -56,27 +46,20 @@ void vStringToMorse(void* param){
     char readChar = 0;
 
     for(;;){
-        //vPrintString("Trying to read from Queue\n");
-        //printf("Messages in charQueue: %i\n",uxQueueMessagesWaiting(charQueue));
         if(uxQueueMessagesWaiting(charQueue)){
-            //vPrintString("Entered Chara conversion\n");
             i = 0;
             xQueueReceive(charQueue,&readChar,0);
-            //vPrintChar(readChar);
             for(; i < 36;i++){
-                //printf("Index: %i\n",i);
                 if(readChar == charArray[i] || readChar + CAPITAL_OFFSET == charArray[i]){break;}
             }
             if(uxQueueMessagesWaiting(intQueue)){ //could cause an extra long dash if this returns false before line +22 triggers
-                //printf("\nSending to queue: %u",*(intArray+i));
                 xQueueSend(intQueue,intArray+i,pdMS_TO_TICKS(1000));
             }else{
                 uint16_t temp = intArray[i]*2+1;
-                //printf("\nSending to queue: %u",temp);
                 xQueueSend(intQueue,&temp,pdMS_TO_TICKS(1000));
             }
         }else{
-            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(MAX_INTR_WDT_DELAY);
         }
     }
 }
@@ -91,22 +74,7 @@ void vMorseFlash(void* param){
         if(uxQueueMessagesWaiting(intQueue)){
             mask = 0x01;
             xQueueReceive(intQueue,&flashSequence,0);
-            //printf("Int from Queue: %u",flashSequence);
             for(;mask;mask*=2){
-                printf("%u & %u : %d\n",flashSequence,mask,flashSequence & mask);
-                printf("%u && %u\n",!((flashSequence >> 1) & mask),uxQueueMessagesWaiting(intQueue));
-                /*
-                if(flashSequence & mask){
-                    led_on:
-                    gpio_set_level(ONBOARD_LED,1);
-                }else if(!((flashSequence >> 1) & mask) && uxQueueMessagesWaiting(intQueue)){ //if current char has been read and there's another in queue, preload it
-                    xQueueReceive(intQueue,&flashSequence,0);
-                    mask = 0x01;
-                    printf("%u characters remaining\n",uxQueueMessagesWaiting(intQueue));
-                    goto led_on;
-                }else{
-                    gpio_set_level(ONBOARD_LED,0);
-                }*/
                 gpio_set_level(ONBOARD_LED,flashSequence & mask);
                 if(!((flashSequence >> 1) & mask) && uxQueueMessagesWaiting(intQueue)){
                     xQueueReceive(intQueue,&flashSequence,0);
@@ -128,7 +96,6 @@ void vSendInputBuffer(void* param){
 
     for(;;){
         xTaskNotifyWait(0,ULONG_MAX,&buffer,MAX_INTR_WDT_DELAY);
-        printf("Items waiting in sendTo: %u",uxQueueMessagesWaiting(sendTo));
         xQueueSend(sendTo,(char*) &buffer,MAX_INTR_WDT_DELAY);
     }
 }
@@ -147,7 +114,7 @@ void vHandleInput(void* param){
             }
         }
         lastCheck = gpio_get_level(CHECK_INPUT);
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(MAX_INTR_WDT_DELAY);
     }
 }
 
@@ -159,7 +126,7 @@ void SendTestGPIOInput(){
             gpio_set_level(GPIO_OUT,testString[index] & mask);
             gpio_set_level(CHECK_OUTPUT,check);
             check = !check;
-            vTaskDelay(pdMS_TO_TICKS(10));
+            vTaskDelay(MAX_INTR_WDT_DELAY);
         }
     }
 }
@@ -184,17 +151,17 @@ void app_main() {
     TaskHandle_t sendBufferTask;
 
     if(charQueue && intQueue){
-        xTaskCreate(vSendInputBuffer,"SendBuffer",1024,handles[0],tskIDLE_PRIORITY+1,&sendBufferTask);
-        xTaskCreate(vPutStringInQueue,"PutStringInQueue",1024,(void*) &charQueue,2,NULL);
-        xTaskCreate(vStringToMorse,"StringToMorse",1024,(void*) handles,1,NULL);
-        xTaskCreate(vMorseFlash,"MorseFlash",1024,&intQueue,1,NULL);
+        xTaskCreate(vSendInputBuffer,"SendBuffer",512,(void*) &charQueue,tskIDLE_PRIORITY+1,&sendBufferTask);
+        xTaskCreate(vPutStringInQueue,"PutStringInQueue",512,(void*) &charQueue,tskIDLE_PRIORITY+2,NULL);
+        xTaskCreate(vStringToMorse,"StringToMorse",1024,(void*) handles,tskIDLE_PRIORITY+1,NULL);
+        xTaskCreate(vMorseFlash,"MorseFlash",2048,&intQueue,tskIDLE_PRIORITY+1,NULL); //takes extra memory
         xTaskCreate(vHandleInput,"HandleGPIO",1024,(void*) &sendBufferTask,tskIDLE_PRIORITY+1,NULL);
     }else{
         printf("%s","Error: One or both queues not created\n");
     }
     for(;;){
         SendTestGPIOInput();
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(1000000);
     }
 
     return;
