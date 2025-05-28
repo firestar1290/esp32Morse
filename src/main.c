@@ -14,7 +14,7 @@
 #include "lwip/sockets.h"
 #include "esp_log.h"
 
-#include "env.h"
+#include "env.h" //contains SSID, PASS, and PORT
 
 #define ONBOARD_LED GPIO_NUM_13
 #define BUZZER_ANALOG_OUT DAC_CHAN_0
